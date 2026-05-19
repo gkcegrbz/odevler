@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ders Notu Otomasyonu</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F5F2EC; --surface: #FDFCF9; --border: #D9D4C7;
+    --text: #1A1714; --muted: #7A756B; --accent: #2D5016;
+    --accent-light: #EDF2E6; --accent-mid: #4A7C25;
+    --danger: #8B2500; --danger-light: #FDF0EC;
+    --success: #1A4D00; --success-light: #EDF7E6;
+    --warning: #6B4200; --warning-light: #FDF5E6;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 580px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.06); }
+  .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 2rem; }
+  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  h1 { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--text); font-weight: 400; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 300; }
+  .tabs { display: flex; gap: 4px; background: var(--bg); border-radius: 10px; padding: 4px; margin: 1.5rem 0; border: 1px solid var(--border); flex-wrap: wrap; }
+  .tab { flex: 1; min-width: 70px; padding: 8px 10px; border: none; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400; cursor: pointer; background: transparent; color: var(--muted); transition: all 0.15s ease; display: flex; align-items: center; justify-content: center; gap: 5px; }
+  .tab svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-weight: 500; }
+  .field { margin-bottom: 1.25rem; }
+  label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  input[type="text"], input[type="url"], textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--bg); outline: none; transition: border-color 0.15s; resize: vertical; }
+  input:focus, textarea:focus { border-color: var(--accent-mid); background: var(--surface); }
+  input::placeholder, textarea::placeholder { color: #B5B0A6; font-weight: 300; }
+  textarea { min-height: 130px; line-height: 1.6; }
+  .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); position: relative; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-mid); background: var(--accent-light); }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-icon { font-size: 32px; margin-bottom: 8px; }
+  .drop-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .drop-sub { font-size: 12px; color: var(--muted); }
+  .drop-sub span { color: var(--accent-mid); font-weight: 500; }
+  .file-preview { margin-top: 10px; padding: 10px 14px; background: var(--accent-light); border: 1px solid #C0D8A0; border-radius: 8px; font-size: 13px; color: var(--accent); display: none; align-items: center; gap: 8px; }
+  .file-preview svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .file-preview .fname { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-preview .fremove { cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
+  .file-preview .fremove:hover { color: var(--danger); }
+  .extract-status { font-size: 12px; color: var(--muted); margin-top: 6px; display: none; font-style: italic; }
+  .url-hint { font-size: 11px; color: var(--muted); margin-top: 5px; font-weight: 300; }
+  .url-hint span { color: var(--accent-mid); }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+  .submit-btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .submit-btn:hover { background: #3a6b1e; transform: translateY(-1px); }
+  .submit-btn:disabled { background: var(--border); cursor: not-allowed; transform: none; }
+  .submit-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .alert { padding: 12px 14px; border-radius: 8px; font-size: 13px; margin-top: 1rem; display: none; line-height: 1.5; }
+  .alert.success { background: var(--success-light); color: var(--success); border: 1px solid #B8E0A0; }
+  .alert.error   { background: var(--danger-light);  color: var(--danger);  border: 1px solid #F0C0A8; }
+  .alert.warning { background: var(--warning-light); color: var(--warning); border: 1px solid #F0D8A8; }
+  .alert.info    { background: var(--accent-light);  color: var(--accent);  border: 1px solid #C0D8A0; }
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .section-label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem; display: flex; align-items: center; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); margin-left: 10px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <h1>Ders Notu AI</h1>
+      <p class="subtitle">Otomatik özetle → Notion'a kaydet + PDF indir</p>
+    </div>
+  </div>
+
+  <div class="section-label">İçerik Türü</div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-metin" onclick="setMod('metin')">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      Metin
+    </button>
+    <button class="tab" id="tab-dosya" onclick="setMod('dosya')">
+      <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      Dosya
+    </button>
+    <button class="tab" id="tab-youtube" onclick="setMod('youtube')">
+      <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+      YouTube
+    </button>
+    <button class="tab" id="tab-makale" onclick="setMod('makale')">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Makale
+    </button>
+  </div>
+
+  <div class="field">
+    <label>Ders Adı</label>
+    <input type="text" id="ders_adi" placeholder="örn. Nesne Yönelimli Programlama" />
+  </div>
+
+  <div id="alan-metin" class="field">
+    <label>Ders Notu Metni</label>
+    <textarea id="metin_input" placeholder="Ders notunu buraya yapıştır..."></textarea>
+  </div>
+
+  <div id="alan-dosya" class="field hidden">
+    <label>Dosya Yükle</label>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="dosya_input" accept=".pdf,.doc,.docx,.txt" onchange="dosyaSecildi(this.files[0])">
+      <div class="drop-icon">📄</div>
+      <div class="drop-title">Dosyayı sürükle veya tıkla</div>
+      <div class="drop-sub">Desteklenen: <span>PDF · DOCX · DOC · TXT</span></div>
+    </div>
+    <div class="file-preview" id="file-preview">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      <span class="fname" id="file-name"></span>
+      <span class="fremove" onclick="dosyaTemizle()">×</span>
+    </div>
+    <div class="extract-status" id="extract-status"></div>
+  </div>
+
+  <div id="alan-url" class="field hidden">
+    <label id="url-label">URL</label>
+    <input type="url" id="url_input" placeholder="https://" />
+    <p class="url-hint" id="url-hint"></p>
+  </div>
+
+  <hr class="divider">
+
+  <button class="submit-btn" id="submit-btn" onclick="gonder()">
+    <svg viewBox="0 0 24 24" id="btn-icon"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+    <div class="spinner" id="spinner"></div>
+    <span id="btn-text">Notion'a Gönder & PDF İndir</span>
+  </button>
+
+  <div class="alert" id="alert"></div>
+</div>
+
+<script>
+  const WEBHOOK = 'http://localhost:5678/webhook/ders-notu';
+  let mod = 'metin';
+  let extractedText = '';
+
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  function setMod(m) {
+    mod = m;
+    ['metin','dosya','youtube','makale'].forEach(x => {
+      document.getElementById('tab-' + x).classList.toggle('active', x === m);
+    });
+    document.getElementById('alan-metin').classList.toggle('hidden', m !== 'metin');
+    document.getElementById('alan-dosya').classList.toggle('hidden', m !== 'dosya');
+    document.getElementById('alan-url').classList.toggle('hidden', !['youtube','makale'].includes(m));
+    if (m === 'youtube') {
+      document.getElementById('url-label').textContent = 'YouTube URL';
+      document.getElementById('url_input').placeholder = 'https://youtube.com/watch?v=...';
+      document.getElementById('url-hint').innerHTML = 'Örn: <span>https://youtube.com/watch?v=dQw4w9WgXcQ</span>';
+    } else if (m === 'makale') {
+      document.getElementById('url-label').textContent = 'Makale / Web URL';
+      document.getElementById('url_input').placeholder = 'https://arxiv.org/abs/...';
+      document.getElementById('url-hint').innerHTML = 'arXiv, dergi, blog veya herhangi bir <span>web sayfası</span>';
+    }
+  }
+
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) dosyaSecildi(e.dataTransfer.files[0]);
+  });
+
+  function dosyaSecildi(file) {
+    if (!file) return;
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!['.pdf','.doc','.docx','.txt'].includes(ext)) {
+      goster('error', 'Sadece PDF, DOCX, DOC, TXT desteklenir.');
+      return;
+    }
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-preview').style.display = 'flex';
+    const status = document.getElementById('extract-status');
+    status.style.display = 'block';
+    status.textContent = 'Metin okunuyor...';
+    extractedText = '';
+    if (ext === '.txt') {
+      const reader = new FileReader();
+      reader.onload = e => {
+        extractedText = e.target.result;
+        status.textContent = '✓ Hazır — ' + extractedText.length + ' karakter';
+      };
+      reader.readAsText(file);
+    } else if (ext === '.pdf') {
+      okPDF(file, status);
+    } else {
+      okDOCX(file, status);
+    }
+  }
+
+  async function okPDF(file, status) {
+    try {
+      const ab = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+      let text = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(s => s.str).join(' ') + '\n';
+      }
+      extractedText = text.trim();
+      status.textContent = '✓ PDF okundu — ' + pdf.numPages + ' sayfa, ' + extractedText.length + ' karakter';
+    } catch(e) {
+      status.textContent = '⚠ PDF okunamadı: ' + e.message;
+    }
+  }
+
+  async function okDOCX(file, status) {
+    try {
+      const ab = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: ab });
+      extractedText = result.value.trim();
+      status.textContent = '✓ Belge okundu — ' + extractedText.length + ' karakter';
+    } catch(e) {
+      status.textContent = '⚠ Belge okunamadı: ' + e.message;
+    }
+  }
+
+  function dosyaTemizle() {
+    extractedText = '';
+    document.getElementById('dosya_input').value = '';
+    document.getElementById('file-preview').style.display = 'none';
+    document.getElementById('extract-status').style.display = 'none';
+  }
+
+  function pdfIndir(ders_adi, ozet, anahtar_kavramlar, madde_madde, sorular) {
+    const tarih = new Date().toLocaleDateString('tr-TR');
+    const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>${ders_adi} - Ders Notu</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #F5F2EC; padding: 40px; max-width: 800px; margin: 0 auto; color: #1A1714; }
+  .header { border-bottom: 2px solid #2D5016; padding-bottom: 20px; margin-bottom: 30px; }
+  .header h1 { font-family: 'DM Serif Display', serif; font-size: 32px; color: #2D5016; font-weight: 400; }
+  .header .meta { font-size: 13px; color: #7A756B; margin-top: 6px; }
+  .section { background: white; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; border-left: 4px solid #2D5016; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .section h2 { font-size: 11px; font-weight: 600; color: #7A756B; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .section p { font-size: 14px; line-height: 1.8; color: #1A1714; white-space: pre-wrap; }
+  .kavramlar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .kavram { background: #EDF2E6; color: #2D5016; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #7A756B; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>${ders_adi}</h1>
+  <div class="meta">Ders Notu AI tarafından oluşturuldu · ${tarih}</div>
+</div>
+
+<div class="section">
+  <h2>📝 Özet</h2>
+  <p>${ozet}</p>
+</div>
+
+<div class="section">
+  <h2>🔑 Anahtar Kavramlar</h2>
+  <div class="kavramlar">
+    ${anahtar_kavramlar.split(',').map(k => `<span class="kavram">${k.trim()}</span>`).join('')}
+  </div>
+</div>
+
+<div class="section">
+  <h2>📋 Madde Madde Notlar</h2>
+  <p>${madde_madde}</p>
+</div>
+
+<div class="section">
+  <h2>❓ Olası Sınav Soruları</h2>
+  <p>${sorular}</p>
+</div>
+
+<div class="footer">Ders Notu AI · n8n + OpenRouter + Notion</div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ders_adi.replace(/[^a-zA-Z0-9ğüşöçıİĞÜŞÖÇ ]/g, '') + ' - Ders Notu.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function gonder() {
+    const ders_adi = document.getElementById('ders_adi').value.trim();
+    if (!ders_adi) { goster('warning', 'Lütfen ders adını gir!'); return; }
+
+    let body = { ders_adi, tip: mod };
+
+    if (mod === 'metin') {
+      const metin = document.getElementById('metin_input').value.trim();
+      if (!metin) { goster('warning', 'Lütfen ders metnini gir!'); return; }
+      body.metin = metin;
+    } else if (mod === 'dosya') {
+      if (!extractedText) { goster('warning', 'Lütfen bir dosya seç ve metnin okunmasını bekle!'); return; }
+      body.metin = extractedText;
+      body.tip = 'metin';
+    } else {
+      const url = document.getElementById('url_input').value.trim();
+      if (!url) { goster('warning', 'Lütfen URL gir!'); return; }
+      body.url = url;
+    }
+
+    setLoading(true);
+    goster('info', 'Gönderiliyor, lütfen bekle...');
+
+    try {
+      const res = await fetch(WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+
+        // PDF otomatik indir
+        if (data.ozet) {
+          pdfIndir(
+            ders_adi,
+            data.ozet || '',
+            data.anahtar_kavramlar || '',
+            data.madde_madde || '',
+            data.sorular || ''
+          );
+          goster('success', "✓ Notion'a kaydedildi ve PDF dosyanız indirildi!");
+        } else {
+          goster('success', "✓ Notion'a başarıyla kaydedildi!");
+        }
+
+        document.getElementById('metin_input').value = '';
+        document.getElementById('url_input').value = '';
+        document.getElementById('ders_adi').value = '';
+        dosyaTemizle();
+      } else {
+        goster('error', 'Hata: ' + res.status + '. n8n çalışıyor mu?');
+      }
+    } catch(e) {
+      goster('error', "Bağlantı hatası. n8n'in açık olduğundan emin ol (localhost:5678).");
+    }
+    setLoading(false);
+  }
+
+  function setLoading(l) {
+    document.getElementById('submit-btn').disabled = l;
+    document.getElementById('spinner').style.display = l ? 'block' : 'none';
+    document.getElementById('btn-icon').style.display = l ? 'none' : 'block';
+    document.getElementById('btn-text').textContent = l ? 'Gönderiliyor...' : "Notion'a Gönder & PDF İndir";
+  }
+
+  function goster(tip, mesaj) {
+    const el = document.getElementById('alert');
+    el.className = 'alert ' + tip;
+    el.style.display = 'block';
+    el.textContent = mesaj;
+  }
+</script>
+</body>
+</html>

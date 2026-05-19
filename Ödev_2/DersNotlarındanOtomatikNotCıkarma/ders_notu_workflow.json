@@ -1,0 +1,172 @@
+{
+  "name": "Ders Notları - AI Otomasyonu (Tam)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ders-notu",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "24a039e1-4250-4772-bf67-96469bbb0078",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "94df5a55-c2f6-4711-a0f4-182bc12a3200"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst metin = body.metin || '';\nconst ders_adi = body.ders_adi || 'Ders Notu';\nconst tip = body.tip || 'metin';\nconst url = body.url || '';\nlet video_id = '';\nif (tip === 'youtube' && url) {\n  const match = url.match(/(?:v=|youtu\\.be\\/)([\\w-]{11})/);\n  if (match) video_id = match[1];\n}\nreturn [{ json: { metin, ders_adi, tip, url, video_id } }];"
+      },
+      "id": "88999c9a-4e7e-40aa-9f39-ba458c7f1188",
+      "name": "Girişi Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "id": "cond-youtube", "leftValue": "={{ $json.tip }}", "rightValue": "youtube", "operator": { "type": "string", "operation": "equals" } },
+            { "id": "cond-makale", "leftValue": "={{ $json.tip }}", "rightValue": "makale", "operator": { "type": "string", "operation": "equals" } }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "if-url-check",
+      "name": "URL mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.tip === 'youtube' ? 'https://r.jina.ai/https://www.youtube.com/watch?v=' + $json.video_id : 'https://r.jina.ai/' + $json.url }}",
+        "options": { "timeout": 30000, "response": { "response": { "responseFormat": "text" } } }
+      },
+      "id": "http-jina-fetch",
+      "name": "İçeriği Getir",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, -160]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet content = '';\nif (typeof raw === 'string') content = raw;\nelse if (raw.data && typeof raw.data === 'string') content = raw.data;\nelse if (raw.body && typeof raw.body === 'string') content = raw.body;\nelse content = JSON.stringify(raw);\nconst ders_adi = $('Girişi Hazırla').first().json.ders_adi;\nconst temiz = content.substring(0, 6000).replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/g, ' ');\nreturn [{ json: { metin: temiz, ders_adi } }];"
+      },
+      "id": "code-url-text",
+      "name": "URL Metni Al",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, -160]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ders_adi = $json.ders_adi;\nconst temiz = ($json.metin || '').substring(0, 6000).replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/g, ' ');\nreturn [{ json: { metin: temiz, ders_adi } }];"
+      },
+      "id": "code-passthrough",
+      "name": "Metni Aktar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer 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" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'minimax/minimax-m2.5:free', messages: [{ role: 'system', content: 'Sen bir ders notu asistanısın. Verilen metni analiz et ve SADECE aşağıdaki JSON formatında yanıt ver, başka hiçbir şey yazma: {\"ozet\": \"2-3 cümle özet\", \"anahtar_kavramlar\": \"kavram1, kavram2, kavram3\", \"madde_madde\": \"• Madde 1\\n• Madde 2\\n• Madde 3\", \"sorular\": \"1. Soru?\\n2. Soru?\\n3. Soru?\\n4. Soru?\\n5. Soru?\"}' }, { role: 'user', content: $json.metin }], max_tokens: 1500 }) }}",
+        "options": {}
+      },
+      "id": "openrouter-ai",
+      "name": "OpenRouter AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\nlet parsed;\ntry {\n  const cleaned = content.replace(/```json/g, '').replace(/```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  parsed = { ozet: content.substring(0, 500), anahtar_kavramlar: 'Parse hatası', madde_madde: content.substring(0, 500), sorular: 'Parse hatası' };\n}\nconst ders_adi = $('Girişi Hazırla').first().json.ders_adi;\nconst str = (v) => {\n  if (Array.isArray(v)) return v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(', ');\n  if (typeof v === 'object' && v !== null) return JSON.stringify(v);\n  return String(v || '');\n};\nreturn [{ json: { ders_adi: str(ders_adi), ozet: str(parsed.ozet), anahtar_kavramlar: str(parsed.anahtar_kavramlar), madde_madde: str(parsed.madde_madde), sorular: str(parsed.sorular) } }];"
+      },
+      "id": "f44faf43-0128-4484-81cf-cfa9c8010599",
+      "name": "JSON Ayrıştırma",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 0]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": { "mode": "id", "value": "34f988bbc701805bbb6dee45163bf40f" },
+        "title": "={{ $json.ders_adi }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Özet|rich_text", "textContent": "={{ $json.ozet }}" },
+            { "key": "Anahtar Kavramlar|rich_text", "textContent": "={{ $json.anahtar_kavramlar }}" },
+            { "key": "Madde Madde Notlar|rich_text", "textContent": "={{ $json.madde_madde }}" },
+            { "key": "Sorular|rich_text", "textContent": "={{ $json.sorular }}" },
+            { "key": "Tarih|date", "date": "={{ $now }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "51f04410-5520-427d-b9b6-bc9e08dc49ec",
+      "name": "Notion - Kaydet",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1560, 0],
+      "credentials": {
+        "notionApi": { "id": "OtO1ALHlBPfoqkkL", "name": "Notion account 2" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Notion\\'a kaydedildi!', ozet: $('JSON Ayrıştırma').first().json.ozet, anahtar_kavramlar: $('JSON Ayrıştırma').first().json.anahtar_kavramlar, madde_madde: $('JSON Ayrıştırma').first().json.madde_madde, sorular: $('JSON Ayrıştırma').first().json.sorular }) }}",
+        "options": {}
+      },
+      "id": "69c22b16-0e09-4cf5-84de-71eb4b80fdd2",
+      "name": "Başarı Yanıtı",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 0]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Girişi Hazırla", "type": "main", "index": 0 }]] },
+    "Girişi Hazırla": { "main": [[{ "node": "URL mi?", "type": "main", "index": 0 }]] },
+    "URL mi?": {
+      "main": [
+        [{ "node": "İçeriği Getir", "type": "main", "index": 0 }],
+        [{ "node": "Metni Aktar", "type": "main", "index": 0 }]
+      ]
+    },
+    "İçeriği Getir": { "main": [[{ "node": "URL Metni Al", "type": "main", "index": 0 }]] },
+    "URL Metni Al": { "main": [[{ "node": "OpenRouter AI", "type": "main", "index": 0 }]] },
+    "Metni Aktar": { "main": [[{ "node": "OpenRouter AI", "type": "main", "index": 0 }]] },
+    "OpenRouter AI": { "main": [[{ "node": "JSON Ayrıştırma", "type": "main", "index": 0 }]] },
+    "JSON Ayrıştırma": { "main": [[{ "node": "Notion - Kaydet", "type": "main", "index": 0 }]] },
+    "Notion - Kaydet": { "main": [[{ "node": "Başarı Yanıtı", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1", "binaryMode": "separate" },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "53f046aef7e7beeddd446b71351155b1f0cca671f5eb25577a19aedf5ceca9b2"
+  },
+  "id": "LMcruNX9R7LMx9hn",
+  "tags": []
+}
